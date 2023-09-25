@@ -1,10 +1,12 @@
 import os
 import sys
+import glob
 import csv
 import deepl
 import mistletoe
 import pathlib
-from frontmatter import Frontmatter
+import frontmatter
+import click
 from mistletoe.block_token import (
     BlockToken,
     Heading,
@@ -262,10 +264,15 @@ def check_typical_arguments(
                 % DEEPL_GLOSSARY_LANGUAGES
             )
 
+    check_auth_key(auth_key, char_count_only, error_only=True)
+
+
+def check_auth_key(auth_key, char_count_only=True, error_only=False):
     if not auth_key:
         msg = "No authentication token given, so can't make translation or query translation API"
         if char_count_only:
-            print(msg)
+            if not error_only:
+                print(msg)
         else:
             raise ValueError(msg)
 
@@ -415,9 +422,15 @@ def avail_char_quota_deepl(auth_key=None):
 
 def extract_frontmatter_string(markdown_file):
     frontmatter_string = ""
-    frontmatter = Frontmatter.read_file(markdown_file)
-    if frontmatter["frontmatter"]:
-        frontmatter_string = "---" + frontmatter["frontmatter"] + "---\n"
+    md_frontmatter = frontmatter.load(markdown_file).metadata
+    if md_frontmatter:
+        frontmatter_string = (
+            "---\n"
+            + "\n".join(
+                "%s: %s" % (key, md_frontmatter[key]) for key in md_frontmatter.keys()
+            )
+            + "\n---\n"
+        )
 
     return frontmatter_string
 
@@ -449,6 +462,9 @@ def translate_markdown_file(
             "File %s does not have an extension in the accepted list (): %s"
             % (markdown_file, ACCEPTED_MARKDOWN_FILE_EXTENSIONS)
         )
+
+    # Extract the front matter
+    frontmatter_string = extract_frontmatter_string(markdown_file)
 
     with open(markdown_file, "r") as fin:
         # Use a renderer with massive line length for the translation so that we never have line breaks in paragraphs
@@ -494,76 +510,187 @@ def translate_markdown_file(
 
     return char_count
 
-############
-# TODO Convect all these to command line args
-markdown_file = "index.md"  # Should accept a string to use as a wildcard here
-output_file = "out.md"
-auth_key = os.getenv("DEEPL_AUTH_KEY")  # Except probably this
-char_count_only = True
-glossary_file = None
-source_lang = "en"
-target_lang = "es"
 
-# TODO: Be clever with git
-# - Check if we're in git repo
-# - Retain a hidden json file in the repo that contains markdown_file (as key), outputFile and
-#   commit (within dict) from which they were created
-# - read the json and check if the file has been touched since the commit (if not, we don't need to do anything)
-# - filter the list of files to translate accordingly
-# - if we do translate, update the json with the new info
-
-if glossary_file:
-    # Need to turn our csv glossary file into a dict with source lang term as key
-    # and target lang term as value
-    with open(glossary_file, mode="r") as infile:
-        reader = csv.reader(infile)
-        glossary = {rows[0]: rows[1] for rows in reader}
-
-# Not let's do the work
-frontmatter_string = extract_frontmatter_string(markdown_file)
-
-if auth_key:
-    pre_avail_quota = avail_char_quota_deepl(auth_key=auth_key)
-else:
-    pre_avail_quota = -1
-
-char_count = translate_markdown_file(
-    markdown_file,
-    output_file=output_file,
-    source_lang="en",
-    target_lang="es",
-    glossary={},
-    auth_key=auth_key,
-    char_count_only=char_count_only,
+@click.command()
+@click.option(
+    "--input-markdown-filestring",
+    required=True,
+    help='Can be a single file ("index.md"), or a string with wildcards '
+         '("\'*/*.md\'") to match files',
+    type=str,
 )
-if auth_key:
-    post_avail_quota = avail_char_quota_deepl(auth_key=auth_key)
-else:
-    post_avail_quota = -1
+@click.option(
+    "--source-lang",
+    default="en",
+    help="Original language of the markdown file(s)",
+    type=click.Choice(
+        [short_code.lower() for short_code, language in DEEPL_SOURCE_LANGUAGES],
+        case_sensitive=False,
+    ),
+    show_default=True,
+)
+@click.option(
+    "--target-lang",
+    required=True,
+    help="Target language for the markdown file(s)",
+    type=click.Choice(
+        [short_code.lower() for short_code, language in DEEPL_TARGET_LANGUAGES],
+        case_sensitive=False,
+    ),
+)
+@click.option(
+    "--output-subdir",
+    is_flag=True,
+    default=False,
+    help="Flag to indicate if translated documents should be placed in a subdirectory",
+    show_default=True,
+)
+@click.option(
+    "--output-suffix",
+    is_flag=True,
+    default=False,
+    help="Flag to indicate if translated documents should written in the same location"
+         " with a translation suffix",
+    show_default=True,
+)
+@click.option(
+    "--output-suffix-char",
+    default="_",
+    help="Character to use to separate the filename and translation suffix",
+    type=str,
+    show_default=True,
+)
+@click.option(
+    "--char-count-only",
+    is_flag=True,
+    default=False,
+    help="Flag to indicate if we should just count characters that would be translated",
+    show_default=True,
+)
+@click.option(
+    "--glossary-file",
+    help="CSV file that contains glossary terms to be used in the translation (no headers, "
+         "just two columns with source language term then target language translation)",
+    type=str,
+)
+@click.option(
+    "--authentication-key", help="Authentication key for translation API", type=str
+)
+def translate_markdown_files(
+    input_markdown_filestring,
+    source_lang="EN",
+    target_lang=None,
+    output_subdir=False,
+    output_suffix=False,
+    output_suffix_char="_",
+    char_count_only=True,
+    glossary_file=None,
+    authentication_key=None,
+):
+    # Check our authentication key
+    check_auth_key(authentication_key, error_only=False)
 
-if char_count_only:
-    if pre_avail_quota == -1:
-        quota = "Unknown"
+    # First gather our file list
+    markdown_files = glob.glob(input_markdown_filestring)
+    if not markdown_files:
+        raise ValueError(
+            "Your markdown matching string ('%s') did not match any files accessible from the current directory."
+            % input_markdown_filestring
+        )
+
+    # TODO: Be clever with git
+    # - Check if we're in git repo
+    # - Retain a hidden json file in the repo that contains markdown_file (as key), outputFile and
+    #   commit (within dict) from which they were created
+    # - read the json and check if the file has been touched since the commit
+    #   (if not, we don't need to do anything)
+    # - filter the list of files to translate accordingly
+    # - if we do translate, update the json with the new info
+
+    if glossary_file:
+        # Need to turn our csv glossary file into a dict with source lang term as key
+        # and target lang term as value
+        with open(glossary_file, mode="r") as infile:
+            reader = csv.reader(infile)
+            glossary = {rows[0]: rows[1] for rows in reader}
     else:
-        quota = "%d" % pre_avail_quota
-    print(
-        "%s: Translation would use %d characters, available quota is %s"
-        % (markdown_file, char_count, quota)
-    )
-    if 0 < pre_avail_quota < char_count:
-        print(
-            "You would not have enough quota to carry out this translation!",
-            file=sys.stderr,
+        glossary = {}
+    # Not let's do the work
+    total_characters_required = 0
+    total_characters_used = 0
+    for markdown_file in markdown_files:
+        # Construct the output file name/location
+        if output_subdir and output_suffix:
+            raise ValueError(
+                "You must chose between setting a subdirectory for output "
+                "('output_subdir', resulting in 'path/to/example/es/example.md') or "
+                "adding a suffix to the original file name "
+                "('output_suffix', resulting in 'path/to/example/example_es.md')"
+            )
+        if output_subdir:
+            split_path = os.path.split(markdown_file)
+            output_file = os.path.join(split_path[0], target_lang, split_path[1])
+        elif output_suffix:
+            # Split on the extension this time
+            split_path = os.path.splitext(markdown_file)
+            output_file = (
+                split_path[0]
+                + "%s%s" % (output_suffix_char, target_lang)
+                + split_path[1]
+            )
+        else:
+            output_file = None
+        if authentication_key:
+            pre_avail_quota = avail_char_quota_deepl(auth_key=authentication_key)
+        else:
+            pre_avail_quota = -1
+        char_count = translate_markdown_file(
+            markdown_file,
+            output_file=output_file,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            glossary=glossary,
+            auth_key=authentication_key,
+            char_count_only=char_count_only,
         )
-else:
-    actual_quota_usage = pre_avail_quota - post_avail_quota
-    print(
-        "%s: Translation used %d characters, you have %d quota remaining"
-        % (markdown_file, actual_quota_usage, post_avail_quota)
-    )
-    if actual_quota_usage > int(1.1 * char_count):
+        total_characters_required += char_count
+        if authentication_key:
+            post_avail_quota = avail_char_quota_deepl(auth_key=authentication_key)
+        else:
+            post_avail_quota = -1
+        if char_count_only:
+            if pre_avail_quota == -1:
+                quota = "Unknown"
+            else:
+                quota = "%d" % pre_avail_quota
+            print(
+                "%s: Translation would use %d characters, available quota is %s"
+                % (markdown_file, char_count, quota)
+            )
+            if 0 < pre_avail_quota < char_count:
+                print(
+                    "You would not have enough quota to carry out this translation!",
+                    file=sys.stderr,
+                )
+        else:
+            actual_quota_usage = pre_avail_quota - post_avail_quota
+            total_characters_used += actual_quota_usage
+            print(
+                "%s: Translation used %d characters, you have %d quota remaining"
+                % (markdown_file, actual_quota_usage, post_avail_quota)
+            )
+            if actual_quota_usage > int(1.1 * char_count):
+                print(
+                    "Expected quota usage (%d) larger than estimated (%d)! "
+                    % (actual_quota_usage, char_count),
+                    file=sys.stderr,
+                )
+    if len(markdown_files) > 1:
         print(
-            "Expected quota usage (%d) larger than estimated (%d)! "
-            % (actual_quota_usage, char_count),
-            file=sys.stderr,
+            "Total characters required for translation: %d" % total_characters_required
         )
+        if total_characters_used:
+            print("Total characters used: %d" % total_characters_used)
+
+if __name__ == "__main__":
+    translate_markdown_files()
