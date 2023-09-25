@@ -516,7 +516,7 @@ def translate_markdown_file(
     "--input-markdown-filestring",
     required=True,
     help='Can be a single file ("index.md"), or a string with wildcards '
-         '("\'*/*.md\'") to match files',
+    "(\"'*/*.md'\") to match files",
     type=str,
 )
 @click.option(
@@ -550,7 +550,7 @@ def translate_markdown_file(
     is_flag=True,
     default=False,
     help="Flag to indicate if translated documents should written in the same location"
-         " with a translation suffix",
+    " with a translation suffix",
     show_default=True,
 )
 @click.option(
@@ -570,7 +570,7 @@ def translate_markdown_file(
 @click.option(
     "--glossary-file",
     help="CSV file that contains glossary terms to be used in the translation (no headers, "
-         "just two columns with source language term then target language translation)",
+    "just two columns with source language term then target language translation)",
     type=str,
 )
 @click.option(
@@ -691,6 +691,7 @@ def translate_markdown_files(
         )
         if total_characters_used:
             print("Total characters used: %d" % total_characters_used)
+
 
 if __name__ == "__main__":
     translate_markdown_files()
