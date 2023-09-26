@@ -5,7 +5,7 @@ Machine translation of technical markdown files can be difficult as you need to 
 * code blocks and code within the text are still correct,
 * you may need to retain specific terminology.
 
-This package aims to enable machine translation which respecting these requirements. It translates
+This package aims to enable machine translation while respecting these requirements. It translates
 only the prose content of the lesson (so headings and paragraphs, ignoring all code) and allows you
 to use a CSV format glossary to define specific translations (such as terminology).
 
