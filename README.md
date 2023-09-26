@@ -31,4 +31,4 @@ translate_md --help
 This will most likely never be perfect, but may be a good way to provide an initial starting point
 for translations of markdown documents. At that point you could create a proper translation project
 to look towards more accurate translation of the content (using for example, frameworks such as
-[Crowdin](https://support.crowdin.com/github-integration/)
+[Crowdin](https://support.crowdin.com/github-integration/)).
