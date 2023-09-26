@@ -26,7 +26,7 @@ it is probably better to just let the program tell you:
 translate_md --help
 ```
 
-# 
+# Nobody's perfect
 
 This will most likely never be perfect, but may be a good way to provide an initial starting point
 for translations of markdown documents. At that point you could create a proper translation project
