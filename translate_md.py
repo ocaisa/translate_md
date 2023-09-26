@@ -323,7 +323,7 @@ def translate_block_deepl(
     end_marker = "".join(reversed(start_marker))
     markdown_text_to_translate = start_marker + markdown_text + end_marker
 
-    # Translate the resulting markdown text (method translates arrays of strings, so need to do mapping)
+    # Translate the resulting markdown text
     char_count = len(markdown_text_to_translate)
     if char_count_only:
         translated_markdown = markdown_text_to_translate
