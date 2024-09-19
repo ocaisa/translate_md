@@ -91,7 +91,7 @@ def replace_inline_code(token: SpanToken, inline_code_dict: dict):
         inline_code_dict[placeholder] = token.children[0].content
         token.children[0].content = placeholder
 
-    if hasattr(token, "children") and not isinstance(token, InlineCode):
+    if hasattr(token, "children") and not isinstance(token, InlineCode) and token.children is not None:
         for child in token.children:
             replace_inline_code(child, inline_code_dict)
 
@@ -103,7 +103,7 @@ def restore_inline_code(token: SpanToken, inline_code_dict: dict):
         if token.children[0].content in inline_code_dict.keys():
             token.children[0].content = inline_code_dict.pop(token.children[0].content)
 
-    if hasattr(token, "children") and not isinstance(token, InlineCode):
+    if hasattr(token, "children") and not isinstance(token, InlineCode) and token.children is not None:
         for child in token.children:
             replace_inline_code(child, inline_code_dict)
 
@@ -198,7 +198,7 @@ def translate_block(
                     % inline_code_dict
                 )
 
-    if hasattr(token, "children"):
+    if hasattr(token, "children") and token.children is not None:
         for index, child in enumerate(token.children):
             if isinstance(child, BlockToken):
                 child_char_count, token.children[index] = translate_block(
