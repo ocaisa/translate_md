@@ -6,7 +6,7 @@ Machine translation of technical markdown files can be difficult as you need to 
 * you may need to retain specific terminology.
 
 This package aims to enable machine translation while respecting these requirements. It translates
-only the prose content of the lesson (so headings and paragraphs, ignoring all code) and allows you
+only the prose content of the lesson (so headings and paragraphs only, ignoring all code) and allows you
 to use a CSV format glossary to define specific translations (such as terminology).
 
 The application uses DeepL as the translation backend, but could be extended to support other APIs.
