@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import glob
 import csv
@@ -284,21 +285,19 @@ def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
     missed_keys = 0
     keys_to_pop=[]
     for key in inline_code_dict.keys():
+        # weird things with case can happen, let's fix that already
+        insensitive_key = re.compile(re.escape(key), re.IGNORECASE)
+        translated_markdown = insensitive_key.sub(key, translated_markdown)
         if key not in translated_markdown:
-            # Some translations uppercase the first letter, allow for this variant of the key
-            if key.capitalize() in translated_markdown:
-                # Replace the capitalized version(s)
-                translated_markdown = translated_markdown.replace(key.capitalize(), key)
+            # Let's be a little forgiving here and raise a warning
+            # but if it happens more than twice, make it an error
+            msg = "Code placeholder %s (value %s) does not appear in translation:\n%s" % (key, inline_code_dict[key], translated_markdown)
+            print("Warning %d:\n%s" % (missed_keys, msg))
+            if missed_keys < 2:
+                keys_to_pop.append(key)
+                continue
             else:
-                # Let's be a little forgiving here and raise a warning
-                # but if it happens more than twice, make it an error
-                msg = "Code placeholder %s (value %s) does not appear in translation:\n%s" % (key, inline_code_dict[key], translated_markdown)
-                print("Warning %d:\n%s" % (missed_keys, msg))
-                if missed_keys < 2:
-                    keys_to_pop.append(key)
-                    continue
-                else:
-                    raise RuntimeError("Too many warnings for missing code placeholders, exiting!")
+                raise RuntimeError("Too many warnings for missing code placeholders, exiting!")
         location = translated_markdown.find(key)
         translated_markdown = (
             translated_markdown[: location - 1]
