@@ -170,7 +170,8 @@ def translate_block(
             )
 
             # Ensure inline code syntax is preserved
-            translated_markdown = ensure_inline_code_syntax(
+            # (some failures are allowed, so we also may be updating the dictionary)
+            translated_markdown, inline_code_dict = ensure_inline_code_syntax(
                 translated_markdown, inline_code_dict=inline_code_dict
             )
 
@@ -280,12 +281,24 @@ def check_auth_key(auth_key, char_count_only=True, error_only=False):
 def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
     # Make sure all our dict elements exists and are surrounded by `
     # (a machine translator may decide to change them)
+    missed_keys = 0
+    keys_to_pop=[]
     for key in inline_code_dict.keys():
         if key not in translated_markdown:
-            raise RuntimeError(
-                "Code placeholder %s does not appear in translation: %s"
-                % (key, translated_markdown)
-            )
+            # Some translations uppercase the first letter, allow for this variant of the key
+            if key.capitalize() in translated_markdown:
+                # Replace the capitalized version(s)
+                translated_markdown = translated_markdown.replace(key.capitalize(), key)
+            else:
+                # Let's be a little forgiving here and raise a warning
+                # but if it happens more than twice, make it an error
+                msg = "Code placeholder %s (value %s) does not appear in translation:\n%s" % (key, inline_code_dict[key], translated_markdown)
+                print("Warning %d:\n%s" % (missed_keys, msg))
+                if missed_keys < 2:
+                    keys_to_pop.append(key)
+                    continue
+                else:
+                    raise RuntimeError("Too many warnings for missing code placeholders, exiting!")
         location = translated_markdown.find(key)
         translated_markdown = (
             translated_markdown[: location - 1]
@@ -294,7 +307,10 @@ def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
             + "`"
             + translated_markdown[location + len(key) + 1 :]
         )
-    return translated_markdown
+    # If we allowed some key misses, pop them from the dictionary
+    for key in keys_to_pop:
+        inline_code_dict.pop(key)
+    return translated_markdown, inline_code_dict
 
 
 def translate_block_deepl(
@@ -319,7 +335,7 @@ def translate_block_deepl(
     # adding something that can't get translated
     # - leaving a '.' at the end can sometimes cause DeepL to remove the subsequent space
     # - Left a space as you don't want to mess with the first/last word
-    start_marker = "XYZ.1 "
+    start_marker = "XYZ.1: "
     end_marker = "".join(reversed(start_marker))
     markdown_text_to_translate = start_marker + markdown_text + end_marker
 
