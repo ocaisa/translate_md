@@ -16,7 +16,7 @@ from mistletoe.block_token import (
     ThematicBreak,
 )
 from mistletoe.markdown_renderer import MarkdownRenderer, BlankLine
-from mistletoe.span_token import InlineCode, RawText, SpanToken
+from mistletoe.span_token import InlineCode, RawText, SpanToken, Image
 
 # Define the max line length for our MarkdownRenderer to ensure paragraphs are single lines
 MAX_LINE_LENGTH = 10000
@@ -153,6 +153,20 @@ def translate_block(
         ):
             pass
         else:
+            # If we have the alt text that is plain html and sits beside an image
+            # then let's chop the tags off and reinsert them later
+            add_alt = False
+            if (
+                isinstance(token, Paragraph)
+                and isinstance(token.children[0], Image)
+                and isinstance(token.children[1], RawText)
+                and token.children[1].content.startswith("{alt='")
+                and isinstance(token.children[-1], RawText)
+                and token.children[-1].content.endswith("'}")
+            ):
+                add_alt =True
+                token.children[1].content = token.children[1].content.replace("{alt='", "")
+                token.children[-1].content = token.children[-1].content.replace("'}", "")
             # Replace all the inline code blocks with placeholders
             inline_code_dict = {}
             for child in token.children:
@@ -199,6 +213,10 @@ def translate_block(
                     "Something went wrong, you should have an empty dict after translation but you have: %s"
                     % inline_code_dict
                 )
+            if add_alt:
+                # Add back our alt text
+                translated_token.children[1].content = "{alt='" + translated_token.children[1].content
+                translated_token.children[-1].content = translated_token.children[-1].content + "'}"
 
     if hasattr(token, "children") and token.children is not None:
         for index, child in enumerate(token.children):
@@ -435,14 +453,16 @@ def avail_char_quota_deepl(auth_key=None):
     return available_characters
 
 
-def extract_frontmatter_string(markdown_file):
+def extract_frontmatter_dict(markdown_file):
+   return frontmatter.load(markdown_file).metadata
+
+def create_frontmatter_string(frontmatter_dict):
     frontmatter_string = ""
-    md_frontmatter = frontmatter.load(markdown_file).metadata
-    if md_frontmatter:
+    if frontmatter_dict:
         frontmatter_string = (
             "---\n"
             + "\n".join(
-                "%s: %s" % (key, md_frontmatter[key]) for key in md_frontmatter.keys()
+                "%s: %s" % (key, frontmatter_dict[key]) for key in frontmatter_dict.keys()
             )
             + "\n---\n"
         )
@@ -479,7 +499,7 @@ def translate_markdown_file(
         )
 
     # Extract the front matter
-    frontmatter_string = extract_frontmatter_string(markdown_file)
+    frontmatter_dict = extract_frontmatter_dict(markdown_file)
 
     with open(markdown_file, "r") as fin:
         # Use a renderer with massive line length for the translation so that we never have line breaks in paragraphs
@@ -503,6 +523,17 @@ def translate_markdown_file(
                 char_count_only=char_count_only,
                 ignore_triple_colon=ignore_triple_colon,
             )
+    # Also translate the title if it exists
+    if "title" in frontmatter_dict:
+        if char_count_only:
+            char_count += len(frontmatter_dict["title"])
+        else:
+            frontmatter_dict["title"] = translate_deepl(
+                frontmatter_dict["title"],
+                source_lang=source_lang,
+                target_lang=target_lang,
+                glossary=glossary,
+                auth_key=auth_key)
     if not char_count_only or output_file:
 
         if output_file:
@@ -519,8 +550,8 @@ def translate_markdown_file(
         # Use a shorter line length for the final rendering
         with MarkdownRenderer(max_line_length=OUTPUT_LINE_LENGTH) as short_renderer:
             md = short_renderer.render(translated_document)
-            if frontmatter_string:
-                print(frontmatter_string, file=md_output_dest)
+            if frontmatter_dict:
+                print(create_frontmatter_string(frontmatter_dict), file=md_output_dest)
             print(md, file=md_output_dest)
 
     return char_count
