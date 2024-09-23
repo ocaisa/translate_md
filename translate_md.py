@@ -537,7 +537,7 @@ def translate_markdown_file(
 
     with open(markdown_file, "r") as fin:
         # Let's get some translation context
-        # Remove extraneous characters
+        # (removing extraneous characters)
         translation_context = []
         chars = 0
 
@@ -555,6 +555,7 @@ def translate_markdown_file(
 
         translation_context = "\n".join(translation_context)
 
+        # Rewind the file
         fin.seek(0)
 
         # Use a renderer with massive line length for the translation so that we never have line breaks in paragraphs
