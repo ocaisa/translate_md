@@ -444,9 +444,7 @@ def translate_deepl(
     if translation_context:
         # There's a limit on how big a request can be but let's just give as much context as possible
         characters_to_send = min((MAX_TRANSLATION_CONTEXT - total_characters), len(translation_context))
-        print("Sending context: %s", translation_context[:characters_to_send])
         translator_kwargs["context"] = translation_context[:characters_to_send]
-        print(translation_context[:characters_to_send])
 
     result = translator.translate_text(text, **translator_kwargs).text
 
@@ -554,7 +552,8 @@ def translate_markdown_file(
                 source_lang=source_lang,
                 target_lang=target_lang,
                 glossary=glossary,
-                auth_key=auth_key)
+                auth_key=auth_key,
+                translation_context=translation_context)
     if not char_count_only or output_file:
 
         if output_file:
