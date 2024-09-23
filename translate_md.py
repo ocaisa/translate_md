@@ -485,6 +485,25 @@ def create_frontmatter_string(frontmatter_dict):
     return frontmatter_string
 
 
+def text_line(line):
+    """Remove extraneous Markdown characters."""
+
+    rep = (
+        ("**", " "),
+        ("__", " "),
+    )
+
+    for a, b in rep:
+        line = line.replace(a, b)
+
+    lstrip = ("#", ":", "-", "*", "`", "-", "{", "}")
+
+    for lstr in lstrip:
+        line = line.lstrip(lstr)
+
+    return line.strip()
+
+
 def translate_markdown_file(
     markdown_file,
     output_file=None,
@@ -518,8 +537,26 @@ def translate_markdown_file(
 
     with open(markdown_file, "r") as fin:
         # Let's get some translation context
-        translation_context = fin.read(MAX_TRANSLATION_CONTEXT)
+        # Remove extraneous characters
+        translation_context = []
+        chars = 0
+
+        for line in fin:
+            line = text_line(line)
+
+            if not line:
+                continue
+
+            # +1 is the newline char
+            if (chars := chars + len(line) + 1) > MAX_TRANSLATION_CONTEXT:
+                break
+
+            translation_context.append(line)
+
+        translation_context = "\n".join(translation_context)
+
         fin.seek(0)
+
         # Use a renderer with massive line length for the translation so that we never have line breaks in paragraphs
         with MarkdownRenderer(max_line_length=MAX_LINE_LENGTH) as renderer:
             document = mistletoe.Document(fin)
