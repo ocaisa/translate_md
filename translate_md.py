@@ -68,6 +68,10 @@ DEEPL_GLOSSARY_LANGUAGES = [
     "RU",
     "ZH",
 ]
+# Request body size limit of 128 KiB, which is 16K characters
+# (but we also need to leave room for any other arguments)
+DEEPL_MAX_REQUEST_CHARACTERS = 12000
+MAX_TRANSLATION_CONTEXT = DEEPL_MAX_REQUEST_CHARACTERS
 # Define accepted markdown formats
 ACCEPTED_MARKDOWN_FILE_EXTENSIONS = [
     ".md",
@@ -118,6 +122,7 @@ def translate_block(
     glossary={},
     auth_key=None,
     char_count_only=True,
+    translation_context=None,
 ):
     """Update the text contents of paragraphs and headings within this block,
     and recursively within its children."""
@@ -182,6 +187,7 @@ def translate_block(
                 glossary=glossary,
                 auth_key=auth_key,
                 char_count_only=char_count_only,
+                translation_context=translation_context,
             )
 
             # Ensure inline code syntax is preserved
@@ -230,6 +236,7 @@ def translate_block(
                     glossary=glossary,
                     auth_key=auth_key,
                     char_count_only=char_count_only,
+                    translation_context=translation_context,
                 )
                 char_count += child_char_count
 
@@ -337,6 +344,7 @@ def translate_block_deepl(
     auth_key=None,
     glossary={},
     char_count_only=False,
+    translation_context=None,
 ):
     check_typical_arguments(
         source_lang=source_lang,
@@ -367,6 +375,7 @@ def translate_block_deepl(
             target_lang=target_lang,
             glossary=glossary,
             auth_key=auth_key,
+            translation_context=translation_context,
         )
     translated_markdown = translated_markdown.strip()
 
@@ -390,7 +399,7 @@ def translate_block_deepl(
 
 
 def translate_deepl(
-    text, source_lang="EN", target_lang=None, glossary=None, auth_key=None
+    text, source_lang="EN", target_lang=None, glossary=None, auth_key=None, translation_context=None
 ):
     check_typical_arguments(
         source_lang=source_lang,
@@ -430,6 +439,14 @@ def translate_deepl(
             entries=glossary,
         )
         translator_kwargs["glossary"] = temp_glossary
+
+    # Add translation context if we have some
+    if translation_context:
+        # There's a limit on how big a request can be but let's just give as much context as possible
+        characters_to_send = min((MAX_TRANSLATION_CONTEXT - total_characters), len(translation_context))
+        print("Sending context: %s", translation_context[:characters_to_send])
+        translator_kwargs["context"] = translation_context[:characters_to_send]
+        print(translation_context[:characters_to_send])
 
     result = translator.translate_text(text, **translator_kwargs).text
 
@@ -502,6 +519,9 @@ def translate_markdown_file(
     frontmatter_dict = extract_frontmatter_dict(markdown_file)
 
     with open(markdown_file, "r") as fin:
+        # Let's get some translation context
+        translation_context = fin.read(MAX_TRANSLATION_CONTEXT)
+        fin.seek(0)
         # Use a renderer with massive line length for the translation so that we never have line breaks in paragraphs
         with MarkdownRenderer(max_line_length=MAX_LINE_LENGTH) as renderer:
             document = mistletoe.Document(fin)
@@ -522,6 +542,7 @@ def translate_markdown_file(
                 auth_key=auth_key,
                 char_count_only=char_count_only,
                 ignore_triple_colon=ignore_triple_colon,
+                translation_context=translation_context,
             )
     # Also translate the title if it exists
     if "title" in frontmatter_dict:
