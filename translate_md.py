@@ -84,6 +84,9 @@ ACCEPTED_MARKDOWN_FILE_EXTENSIONS = [
     ".markdown",
     ".text",
 ]
+# Define our markers for the beginning and end of the translation
+START_MARKER = "XYZ.1"
+END_MARKER = "".join(reversed(START_MARKER))
 
 
 def replace_inline_code(token: SpanToken, inline_code_dict: dict):
@@ -308,7 +311,8 @@ def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
     # Make sure all our dict elements exists and are surrounded by `
     # (a machine translator may decide to change them)
     missed_keys = 0
-    keys_to_pop=[]
+    keys_to_pop = []
+
     for key in inline_code_dict.keys():
         # weird things with case can happen, let's fix that already
         insensitive_key = re.compile(re.escape(key), re.IGNORECASE)
@@ -320,6 +324,7 @@ def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
             print("Warning %d:\n%s" % (missed_keys, msg))
             if missed_keys < 2:
                 keys_to_pop.append(key)
+                missed_keys += 1
                 continue
             else:
                 raise RuntimeError("Too many warnings for missing code placeholders, exiting!")
@@ -331,6 +336,15 @@ def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
             + "`"
             + translated_markdown[location + len(key) + 1 :]
         )
+
+    # We should never have an uneven number of backticks
+    # If we do, it is likely due to two (or more) consecutive backticks
+    # introduced in the translation
+    if translated_markdown.count('`') % 2 != 0:
+        translated_markdown = re.sub(r'`+', '`', translated_markdown)
+        # if we still have an uneven number then we have an error
+        if translated_markdown.count('`') % 2 != 0:
+            raise RuntimeError("Uneven number of backticks in translation:\n%s")
     # If we allowed some key misses, pop them from the dictionary
     for key in keys_to_pop:
         inline_code_dict.pop(key)
@@ -360,8 +374,8 @@ def translate_block_deepl(
     # adding something that can't get translated
     # - leaving a '.' at the end can sometimes cause DeepL to remove the subsequent space
     # - Left a space as you don't want to mess with the first/last word
-    start_marker = "XYZ.1: "
-    end_marker = "".join(reversed(start_marker))
+    start_marker = "%s:: " % START_MARKER
+    end_marker = " ::%s" % END_MARKER
     markdown_text_to_translate = start_marker + markdown_text + end_marker
 
     # Translate the resulting markdown text
@@ -719,6 +733,14 @@ def translate_markdown_files(
             glossary = {rows[0]: rows[1] for rows in reader}
     else:
         glossary = {}
+    
+    # Add our special markers to the glossary so they are never at risk of translation/modification
+    glossary[START_MARKER] = START_MARKER
+    glossary[END_MARKER] = END_MARKER
+    for i in range(1, 100):
+        placeholder = "x%03dy" % i
+        glossary[placeholder] = placeholder
+
     # Not let's do the work
     total_characters_required = 0
     total_characters_used = 0
