@@ -113,7 +113,7 @@ def restore_inline_code(token: SpanToken, inline_code_dict: dict):
 
     if hasattr(token, "children") and not isinstance(token, InlineCode) and token.children is not None:
         for child in token.children:
-            replace_inline_code(child, inline_code_dict)
+            restore_inline_code(child, inline_code_dict)
 
 
 def translate_block(
