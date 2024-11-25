@@ -8,6 +8,7 @@ import mistletoe
 import pathlib
 import frontmatter
 import click
+import tempfile
 from mistletoe.block_token import (
     BlockToken,
     Heading,
@@ -87,6 +88,40 @@ ACCEPTED_MARKDOWN_FILE_EXTENSIONS = [
 # Define our markers for the beginning and end of the translation
 START_MARKER = "XYZ.1"
 END_MARKER = "".join(reversed(START_MARKER))
+
+
+def surround_triple_colon_with_blank_lines(input_file):
+    # Read the contents of the input file
+    with open(input_file, 'r') as file:
+        lines = file.readlines()
+
+    modified_lines = []
+    for i, line in enumerate(lines):
+        if line.startswith(":::"):
+            # Check if there is already a blank line before
+            if i == 0 or lines[i - 1].strip() != "":
+                modified_lines.append("\n")
+
+            modified_lines.append(line)
+
+            # Check if there is already a blank line after
+            if i == len(lines) - 1 or lines[i + 1].strip() != "":
+                modified_lines.append("\n")
+        else:
+            modified_lines.append(line)
+
+    # Create a temporary file and write the modified lines into it
+    temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.md')
+    temp_file.writelines(modified_lines)
+    temp_file.seek(0)  # Go back to the start of the file for reading if needed
+
+    # Print the path of the temporary file
+    print("Temporary file created:", temp_file.name)
+
+    # Close the file (will remain in filesystem due to delete=False)
+    temp_file.close()
+
+    return temp_file.name
 
 
 def replace_inline_code(token: SpanToken, inline_code_dict: dict):
@@ -374,9 +409,7 @@ def translate_block_deepl(
     # adding something that can't get translated
     # - leaving a '.' at the end can sometimes cause DeepL to remove the subsequent space
     # - Left a space as you don't want to mess with the first/last word
-    start_marker = "%s:: " % START_MARKER
-    end_marker = " ::%s" % END_MARKER
-    markdown_text_to_translate = start_marker + markdown_text + end_marker
+    markdown_text_to_translate = START_MARKER + ":: " + markdown_text + " ::" + END_MARKER
 
     # Translate the resulting markdown text
     char_count = len(markdown_text_to_translate)
@@ -394,15 +427,19 @@ def translate_block_deepl(
     translated_markdown = translated_markdown.strip()
 
     # Remove our markers from the translated text
-    if translated_markdown.startswith(start_marker):
-        translated_markdown = translated_markdown.replace(start_marker, "")
+    if translated_markdown.startswith(START_MARKER):
+        translated_markdown = translated_markdown.replace(START_MARKER, "")
+        # Now we also need to remove the colons (and don't worry about spaces)
+        translated_markdown = translated_markdown.lstrip(":")
     else:
         raise RuntimeError(
             "Translated markdown does not have our start signature (%s): %s"
             % (start_marker, translated_markdown)
         )
-    if translated_markdown.endswith(end_marker):
-        translated_markdown = translated_markdown.replace(end_marker, "")
+    if translated_markdown.endswith(END_MARKER):
+        translated_markdown = translated_markdown.replace(END_MARKER, "")
+        # Now we also need to remove the colons (and don't worry about spaces)
+        translated_markdown = translated_markdown.rstrip(":")
     else:
         raise RuntimeError(
             "Translated markdown does not have our end signature (%s): %s"
@@ -549,7 +586,9 @@ def translate_markdown_file(
     # Extract the front matter
     frontmatter_dict = extract_frontmatter_dict(markdown_file)
 
-    with open(markdown_file, "r") as fin:
+    # People may not be careful with ::: syntax (and forget to leave blank lines)
+    temp_markdown_file  = surround_triple_colon_with_blank_lines(markdown_file)
+    with open(temp_markdown_file, "r") as fin:
         # Let's get some translation context
         # (removing extraneous characters)
         translation_context = []
