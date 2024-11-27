@@ -89,8 +89,18 @@ ACCEPTED_MARKDOWN_FILE_EXTENSIONS = [
 START_MARKER = "XYZ.1"
 END_MARKER = "".join(reversed(START_MARKER))
 
+# Some special syntax string used by Galaxy
+GALAXY_SYNTAX_STRINGS = [
+    "{% cite",
+    "question-title",
+    "agenda-title",
+    "solution-title",
+    "tip-title",
+    "hands-on-title",
+    "comment-title",
+]
 
-def surround_triple_colon_with_blank_lines(input_file):
+def surround_special_syntax_with_correct_separation(input_file):
     # Read the contents of the input file
     with open(input_file, 'r') as file:
         lines = file.readlines()
@@ -107,6 +117,37 @@ def surround_triple_colon_with_blank_lines(input_file):
             # Check if there is already a blank line after
             if i == len(lines) - 1 or lines[i + 1].strip() != "":
                 modified_lines.append("\n")
+        # Below we handle Galaxy format which may include nesting
+        elif line.startswith("{: "):
+            # Check if there is already > and nothing else before
+            if i == 0 or modified_lines[-1].strip() != ">":
+                modified_lines.append(">\n")
+
+            modified_lines.append(line)
+
+            # Check if there is already a blank line after
+            if i == len(lines) - 1 or lines[i + 1].strip() != "":
+                modified_lines.append("\n")
+        elif line.startswith("> {: "):
+            # Check if there is already > and nothing else before
+            if i == 0 or modified_lines[-1].strip() != "> >":
+                modified_lines.append("> >\n")
+
+            modified_lines.append(line)
+
+            # Check if there is already a blank line after
+            if i == len(lines) - 1 or lines[i + 1].strip() != ">":
+                modified_lines.append(">\n")
+        elif line.startswith("> > {: "):
+            # Check if there is already > and nothing else before
+            if i == 0 or modified_lines[-1].strip() != "> > >":
+                modified_lines.append("> > >\n")
+
+            modified_lines.append(line)
+
+            # Check if there is already a blank line after
+            if i == len(lines) - 1 or lines[i + 1].strip() != "> >":
+                modified_lines.append("> >\n")
         else:
             modified_lines.append(line)
 
@@ -155,6 +196,7 @@ def translate_block(
     token: BlockToken,
     renderer=None,
     ignore_triple_colon=True,
+    ignore_galaxy_marker=True,
     source_lang="EN",
     target_lang=None,
     glossary={},
@@ -195,11 +237,19 @@ def translate_block(
             and token.children[0].content.startswith(":::")
         ):
             pass
+        # Ignore any paragraph that starts with '{: ' (this is Galaxy specific)
+        elif (
+            ignore_galaxy_marker
+            and isinstance(token, Paragraph)
+            and isinstance(token.children[0], RawText)
+            and token.children[0].content.startswith("{: ")
+        ):
+            pass
         else:
             # If we have the alt text that is plain html and sits beside an image
             # then let's chop the tags off and reinsert them later
             add_alt = False
-            if (
+            if len(token.children) > 1 and (
                 isinstance(token, Paragraph)
                 and isinstance(token.children[0], Image)
                 and isinstance(token.children[1], RawText)
@@ -586,8 +636,8 @@ def translate_markdown_file(
     # Extract the front matter
     frontmatter_dict = extract_frontmatter_dict(markdown_file)
 
-    # People may not be careful with ::: syntax (and forget to leave blank lines)
-    temp_markdown_file  = surround_triple_colon_with_blank_lines(markdown_file)
+    # People may not be careful with ::: syntax (and forget to/ leave blank lines)
+    temp_markdown_file  = surround_special_syntax_with_correct_separation(markdown_file)
     with open(temp_markdown_file, "r") as fin:
         # Let's get some translation context
         # (removing extraneous characters)
@@ -772,10 +822,14 @@ def translate_markdown_files(
             glossary = {rows[0]: rows[1] for rows in reader}
     else:
         glossary = {}
-    
+
     # Add our special markers to the glossary so they are never at risk of translation/modification
     glossary[START_MARKER] = START_MARKER
     glossary[END_MARKER] = END_MARKER
+    # Add special syntax used by Galaxy
+    for item in GALAXY_SYNTAX_STRINGS:
+        glossary[item] = item
+
     for i in range(1, 100):
         placeholder = "x%03dy" % i
         glossary[placeholder] = placeholder
