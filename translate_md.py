@@ -130,9 +130,9 @@ def surround_special_syntax_with_correct_separation(input_file):
             # Check if there is already a blank line after
             if i == len(lines) - 1 or lines[i + 1].strip() != "":
                 modified_lines.append("\n")
-        elif line.startswith("> {: "):
+        elif re.match(r"^>\s+\{: ", line):
             # Check if there is already > and nothing else before
-            if i == 0 or modified_lines[-1].strip() != "> >":
+            if i == 0 or re.match(r"^>\s+>", modified_lines[-1].strip()):
                 modified_lines.append("> >\n")
 
             modified_lines.append(line)
@@ -140,15 +140,15 @@ def surround_special_syntax_with_correct_separation(input_file):
             # Check if there is already a blank line after
             if i == len(lines) - 1 or lines[i + 1].strip() != ">":
                 modified_lines.append(">\n")
-        elif line.startswith("> > {: "):
+        elif re.match(r"^>\s+>\s+\{: ", line):
             # Check if there is already > and nothing else before
-            if i == 0 or modified_lines[-1].strip() != "> > >":
+            if i == 0 or re.match(r"^>\s+>\s+>", modified_lines[-1].strip()):
                 modified_lines.append("> > >\n")
 
             modified_lines.append(line)
 
             # Check if there is already a blank line after
-            if i == len(lines) - 1 or lines[i + 1].strip() != "> >":
+            if i == len(lines) - 1 or re.match(r"^>\s+>", lines[i + 1].strip()):
                 modified_lines.append("> >\n")
         else:
             modified_lines.append(line)
