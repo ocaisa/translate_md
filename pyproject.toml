@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "translate_md"
+version = "0.1.0"
+description = "A CLI tool for translating Markdown files using DeepL."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Alan O'Cais", email = "alan.ocais@cecam.org" }
+]
+keywords = ["markdown", "translation", "DeepL", "CLI"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Internationalization",
+    "Development Status :: 4 - Beta"
+]
+requires-python = ">=3.7"
+dependencies = [
+    "Click>=7.0",
+    "mistletoe>=0.8.0",
+    "python-frontmatter>=1.0",
+    "deepl>=1.0.0",
+    "PyYAML>=5.4"
+]
+
+[project.optional-dependencies]
+dev = [
+    "black"
+]
+
+[project.scripts]
+translate_md = "translate_md:translate_markdown_files"
+
+[tool]
+homepage = "https://github.com/ocaisa/translate_md"
+repository = "https://github.com/ocaisa/translate_md"
+
