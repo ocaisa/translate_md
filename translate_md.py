@@ -669,6 +669,7 @@ def text_line(line):
 def translate_markdown_file(
     markdown_file,
     output_file=None,
+    output_markdown_wrap=False,
     source_lang="EN",
     target_lang=None,
     glossary={},
@@ -767,7 +768,11 @@ def translate_markdown_file(
             md_output_dest = sys.stdout
 
         # Use a shorter line length for the final rendering
-        with MarkdownRenderer(max_line_length=OUTPUT_LINE_LENGTH) as short_renderer:
+        if output_markdown_wrap:
+            max_line_length = OUTPUT_LINE_LENGTH
+        else:
+            max_line_length = MAX_LINE_LENGTH
+        with MarkdownRenderer(max_line_length=max_line_length) as short_renderer:
             md = short_renderer.render(translated_document)
             if frontmatter_dict:
                 print(create_frontmatter_string(frontmatter_dict), file=md_output_dest)
@@ -826,6 +831,14 @@ def translate_markdown_file(
     show_default=True,
 )
 @click.option(
+    "--output-markdown-wrap",
+    is_flag=True,
+    default=False,
+    help="Flag to indicate if translated markdown should have lines wrapped"
+    " (default is False as this may interfere with special syntax)",
+    show_default=True,
+)
+@click.option(
     "--char-count-only",
     is_flag=True,
     default=False,
@@ -848,6 +861,7 @@ def translate_markdown_files(
     output_subdir=False,
     output_suffix=False,
     output_suffix_char="_",
+    output_markdown_wrap=False,
     char_count_only=True,
     glossary_file=None,
     authentication_key=None,
@@ -924,6 +938,7 @@ def translate_markdown_files(
         char_count = translate_markdown_file(
             markdown_file,
             output_file=output_file,
+            output_markdown_wrap=output_markdown_wrap,
             source_lang=source_lang,
             target_lang=target_lang,
             glossary=glossary,
