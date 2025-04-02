@@ -338,12 +338,16 @@ def translate_block(
             for child in translated_token.children:
                 restore_inline_code(child, inline_code_dict)
             if len(inline_code_dict):
-                print(markdown_text)
-                print(translated_markdown)
-                raise RuntimeError(
-                    "Something went wrong, you should have an empty dict after translation but you have: %s"
+                warning = (
+                    "Something went wrong, you should have an empty dict after translation but you have: %s\n\n"
                     % inline_code_dict
                 )
+                warning += (
+                    "Original text is \n%s\nand translated content is \n%s\n\n"
+                    % (markdown_text, translated_markdown)
+                )
+                warning += "I'm going to ignore this problem, but you probably need to manually check the translation."
+                print("Warning:\n%s" % warning)
             if add_alt:
                 # Add back our alt text
                 translated_token.children[1].content = (
@@ -445,13 +449,13 @@ def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
         translated_markdown = insensitive_key.sub(key, translated_markdown)
         if key not in translated_markdown:
             # Let's be a little forgiving here and raise a warning
-            # but if it happens more than twice, make it an error
+            # but if it happens more than thrice, make it an error
             msg = (
                 "Code placeholder %s (value %s) does not appear in translation:\n%s"
                 % (key, inline_code_dict[key], translated_markdown)
             )
             print("Warning %d:\n%s" % (missed_keys, msg))
-            if missed_keys < 2:
+            if missed_keys < 3:
                 keys_to_pop.append(key)
                 missed_keys += 1
                 continue
@@ -475,7 +479,12 @@ def ensure_inline_code_syntax(translated_markdown, inline_code_dict={}):
         translated_markdown = re.sub(r"`+", "`", translated_markdown)
         # if we still have an uneven number then we have an error
         if translated_markdown.count("`") % 2 != 0:
-            raise RuntimeError("Uneven number of backticks in translation:\n%s")
+            warning = (
+                "Uneven number of backticks in translation:\n%s\n\n"
+                % translated_markdown
+            )
+            warning += "You may need to manually check the translated content."
+            print("Warning:\n%s" % warning)
     # If we allowed some key misses, pop them from the dictionary
     for key in keys_to_pop:
         inline_code_dict.pop(key)
@@ -537,6 +546,7 @@ def translate_block_deepl(
             % (START_MARKER, translated_markdown)
         )
         warning += "Will blindly remove the string from the text, but this may need to be manually checked."
+        print("Warning:\n%s" % warning)
         translated_markdown = translated_markdown.replace(START_MARKER, "")
         remove_double_semicolons = True
 
@@ -551,6 +561,7 @@ def translate_block_deepl(
             translated_markdown,
         )
         warning += "Will blindly remove the string from the text, but this may need to be manually checked."
+        print("Warning:\n%s" % warning)
         translated_markdown = translated_markdown.replace(END_MARKER, "")
         remove_double_semicolons = True
 
