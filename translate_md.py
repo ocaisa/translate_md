@@ -14,10 +14,8 @@ from mistletoe.block_token import (
     BlockToken,
     Heading,
     Paragraph,
-    SetextHeading,
-    ThematicBreak,
 )
-from mistletoe.markdown_renderer import MarkdownRenderer, BlankLine
+from mistletoe.markdown_renderer import MarkdownRenderer
 from mistletoe.span_token import InlineCode, RawText, SpanToken, Image
 
 # Define the max line length for our MarkdownRenderer to ensure paragraphs are single lines
@@ -532,19 +530,32 @@ def translate_block_deepl(
         # Now we also need to remove the colons (and don't worry about spaces)
         translated_markdown = translated_markdown.lstrip(":")
     else:
-        raise RuntimeError(
-            "Translated markdown does not have our start signature (%s): %s"
-            % (start_marker, translated_markdown)
+        # Let's be a little forgiving here and raise a warning
+        warning = (
+            "Translated markdown does not have our start signature (%s): %s\n\n"
+            % (START_MARKER, translated_markdown)
         )
+        warning += "Will blindly remove the string from the text, but this may need to be manually checked."
+        translated_markdown = translated_markdown.replace(START_MARKER, "")
+        remove_double_semicolons = True
+
     if translated_markdown.endswith(END_MARKER):
         translated_markdown = translated_markdown.replace(END_MARKER, "")
         # Now we also need to remove the colons (and don't worry about spaces)
         translated_markdown = translated_markdown.rstrip(":")
     else:
-        raise RuntimeError(
-            "Translated markdown does not have our end signature (%s): %s"
-            % (end_marker, translated_markdown)
+        # Let's be a little forgiving here and raise a warning
+        warning = "Translated markdown does not have our end signature (%s): %s\n\n" % (
+            END_MARKER,
+            translated_markdown,
         )
+        warning += "Will blindly remove the string from the text, but this may need to be manually checked."
+        translated_markdown = translated_markdown.replace(END_MARKER, "")
+        remove_double_semicolons = True
+
+    if remove_double_semicolons:
+        # We shouldn't end up here in general if the start/end markers exist
+        translated_markdown = translated_markdown.replace("::", "")
 
     return char_count, translated_markdown
 
