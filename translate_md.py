@@ -541,8 +541,9 @@ def translate_block_deepl(
         translated_markdown = translated_markdown.lstrip(":")
     else:
         # Let's be a little forgiving here and raise a warning
-        warning = (
-            "Translated markdown does not have our start signature (%s): %s\n\n"
+        warning = "Original text was:\n  %s\n" % markdown_text_to_translate
+        warning += (
+            "Translated markdown does not have our start signature ((%s):\n  %s\n\n"
             % (START_MARKER, translated_markdown)
         )
         warning += "Will blindly remove the string from the text, but this may need to be manually checked."
@@ -556,9 +557,13 @@ def translate_block_deepl(
         translated_markdown = translated_markdown.rstrip(":")
     else:
         # Let's be a little forgiving here and raise a warning
-        warning = "Translated markdown does not have our end signature (%s): %s\n\n" % (
-            END_MARKER,
-            translated_markdown,
+        warning = "Original text was:\n  %s\n" % markdown_text_to_translate
+        warning += (
+            "Translated markdown does not have our end signature (%s):\n  %s\n\n"
+            % (
+                END_MARKER,
+                translated_markdown,
+            )
         )
         warning += "Will blindly remove the string from the text, but this may need to be manually checked."
         print("Warning:\n%s" % warning)
