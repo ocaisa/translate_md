@@ -525,6 +525,7 @@ def translate_block_deepl(
     translated_markdown = translated_markdown.strip()
 
     # Remove our markers from the translated text
+    remove_double_semicolons = False  # should be rare that this gets changed
     if translated_markdown.startswith(START_MARKER):
         translated_markdown = translated_markdown.replace(START_MARKER, "")
         # Now we also need to remove the colons (and don't worry about spaces)
